@@ -15,6 +15,7 @@ class WindowsApps(kp.Plugin):
 
     DEFAULT_ITEM_LABEL = "Windows App:"
     DEFAULT_SHOW_MISC_APPS = False
+    DEFAULT_PREFERRED_ICON = "square"
     DEFAULT_PREFERRED_CONTRAST = "black"
 
     def __init__(self):
@@ -23,9 +24,30 @@ class WindowsApps(kp.Plugin):
         super().__init__()
         self._item_label = self.DEFAULT_ITEM_LABEL
 
-    def _get_icon(self, name, icon_path):
+    def _get_icon(self, name, icon_paths):
         """Create a list of possible logo files to show as icon for a window app
         """
+        
+        logos = []
+        
+        if self._preferred_icon in icon_paths:
+            logos = self._resolve_icon(icon_paths[self._preferred_icon])
+
+        for icon_type in [icon_type for icon_type in list(icon_paths.keys()) if icon_type is not self._preferred_icon]:
+            if logos:
+                break
+            logos = self._resolve_icon(icon_type)
+
+        self.dbg(name)
+        for logo in logos:
+            self.dbg("{}".format(logo))
+
+        if logos:
+            cached_logos = self._copy_files(name, logos)
+            handle = self.load_icon(cached_logos)
+            return handle
+    
+    def _resolve_icon(self, icon_path):
         base_path = os.path.splitext(icon_path)
         logos = []
         logos.extend(glob.glob(icon_path))
@@ -53,18 +75,11 @@ class WindowsApps(kp.Plugin):
                                                         os.path.basename(base_path[0]),
                                                         base_path[1])))
 
-        logos_preferred = [logo for logo in logos if "contrast-{}".format(self._preferred_contrast) in logo]
+        logos_preferred = [logo for logo in logos if "contrast-{}".format(self._preferred_contrast) in logo.lower()]
         if logos_preferred:
             logos = logos_preferred
 
-        self.dbg(name)
-        for logo in logos:
-            self.dbg("{}".format(logo))
-
-        if logos:
-            cached_logos = self._copy_files(name, logos)
-            handle = self.load_icon(cached_logos)
-            return handle
+        return logos
 
     def _copy_files(self, name, logos):
         """Copies the logos to the package cache and returns a list of keypirinha resource strings
@@ -96,6 +111,11 @@ class WindowsApps(kp.Plugin):
         self.dbg("item_label =", self._item_label)
 
         self._show_misc_apps = settings.get_bool("show_misc_apps", "main", self.DEFAULT_SHOW_MISC_APPS)
+
+        self._preferred_icon = settings.get_enum(
+            "preferred_icon", "main",
+            fallback=self.DEFAULT_PREFERRED_ICON,
+            enum=["square", "wide", "logo", "package"])
 
         self._preferred_contrast = settings.get_enum(
             "preferred_contrast", "main",
@@ -182,7 +202,7 @@ class WindowsApps(kp.Plugin):
                             target=app.execution,
                             args_hint=kp.ItemArgsHint.FORBIDDEN,
                             hit_hint=kp.ItemHitHint.NOARGS,
-                            icon_handle=self._get_icon(app.app_id, app.icon_path)
+                            icon_handle=self._get_icon(app.app_id, app.icon_paths)
                         ))
             return catalog_items
         except Exception as exc:

@@ -68,7 +68,7 @@ class AppXPackage(object):
         for application in package_applications:
             app_display_name = ""
             app_description = ""
-            app_icon_path = ""
+            app_icon_paths = {}
             app_misc = False
 
             visual_elements = application.find("./*[@DisplayName]", ns)
@@ -91,15 +91,15 @@ class AppXPackage(object):
                 wide_logos = [logo for logo in logos if "wide" in logo.lower()]
                 if square_logos:
                     biggest = max(square_logos, key=lambda x: int(re.search(r"(\d+)x\d+", x).groups()[0]))
-                    app_icon_path = os.path.join(self.InstallLocation, visual_elements.get(biggest) if biggest in visual_elements.attrib else default_tile.get(biggest))
-                if not os.path.isfile(app_icon_path) and wide_logos:
+                    app_icon_paths["square"] = os.path.join(self.InstallLocation, visual_elements.get(biggest) if biggest in visual_elements.attrib else default_tile.get(biggest))
+                if wide_logos:
                     biggest = max(wide_logos, key=lambda x: re.search(r"(\d+)x\d+", x).groups()[0])
-                    app_icon_path = os.path.join(self.InstallLocation, visual_elements.get(biggest) if biggest in visual_elements.attrib else default_tile.get(biggest))
-                if not os.path.isfile(app_icon_path) and logos:
+                    app_icon_paths["wide"] = os.path.join(self.InstallLocation, visual_elements.get(biggest) if biggest in visual_elements.attrib else default_tile.get(biggest))
+                if logos:
                     biggest = min(logos)
-                    app_icon_path = os.path.join(self.InstallLocation, visual_elements.get(biggest) if biggest in visual_elements.attrib else default_tile.get(biggest))
-                if not os.path.isfile(app_icon_path):
-                    app_icon_path = package_icon_path
+                    app_icon_paths["logo"] = os.path.join(self.InstallLocation, visual_elements.get(biggest) if biggest in visual_elements.attrib else default_tile.get(biggest))
+                
+                app_icon_paths["package"] = package_icon_path
 
                 if app_display_name.startswith(RESOURCE_PREFIX):
                     resource = self._get_resource(self.InstallLocation, package_identity, app_display_name)
@@ -133,7 +133,7 @@ class AppXPackage(object):
             apps.append(AppX(execution="shell:AppsFolder\\{}!{}".format(self.PackageFamilyName, application.get("Id")),
                             display_name=app_display_name,
                             description=app_description,
-                            icon_path=app_icon_path,
+                            icon_paths=app_icon_paths,
                             app_id="{}!{}".format(self.PackageFamilyName, application.get("Id")),
                             misc_app=app_misc))
         return apps
@@ -172,10 +172,10 @@ class AppXPackage(object):
 class AppX(object):
     """Represents an executable application from a windows app package
     """
-    def __init__(self, execution=None, display_name=None, description=None, icon_path=None, app_id=None, misc_app=False):
+    def __init__(self, execution=None, display_name=None, description=None, icon_paths=None, app_id=None, misc_app=False):
         self.execution = execution
         self.display_name = display_name
         self.description = description
-        self.icon_path = icon_path
+        self.icon_paths = icon_paths
         self.app_id = app_id
         self.misc_app = misc_app
